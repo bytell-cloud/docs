@@ -39,6 +39,12 @@ The e2-micro VM itself is gated behind a Terraform variable — flip `enable_mic
 
 `claude@bytell.com` user creds via ADC → impersonate `terraform@bytell-claude-cloud.iam.gserviceaccount.com` for all Terraform operations. No exported SA JSON keys (org policy `iam.disableServiceAccountKeyCreation` enforced — best-practice default kept).
 
+## Remote state
+
+Terraform state is in GCS (`gs://bytell-claude-cloud-tfstate`, prefix `terraform/state`), not on operator disks. The backend impersonates the same `terraform@…` SA, so state I/O lands in the same audit trail as the resource calls. Object versioning is on with a 90-day noncurrent-version lifecycle. Locking is automatic via a sibling `.tflock` object — concurrent runs from different hosts block on it.
+
+Operator runbook (init from a fresh machine, force-unlock, version rollback, bucket bootstrap) lives in `infra/gcp/terraform/BACKEND.md` in the infra repo.
+
 ## Free-tier traps
 
 - **BigQuery streaming inserts cost money** ($0.01/200 MB). Use load jobs or batched inserts.
