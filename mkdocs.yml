@@ -40,6 +40,8 @@ nav:
       - OCI: infra/oci.md
       - GCP: infra/gcp.md
       - Cloudflare: infra/cloudflare.md
+  - Runbooks:
+      - SSH access: runbooks/ssh-access.md
 
 markdown_extensions:
   - admonition
