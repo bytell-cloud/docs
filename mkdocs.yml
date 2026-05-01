@@ -37,6 +37,7 @@ nav:
   - Home: index.md
   - Infrastructure:
       - Overview: infra/overview.md
+      - Glue (cross-cloud patterns): infra/glue.md
       - OCI: infra/oci.md
       - GCP: infra/gcp.md
       - Cloudflare: infra/cloudflare.md
@@ -55,9 +56,20 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
 
 plugins:
   - search
+
+# Mermaid diagrams. mkdocs-material has integrated support via its own
+# bundle on newer versions; on this version (9.7.6) we wire the runtime
+# explicitly. Self-init at the bottom; theme switches via dataset attribute.
+extra_javascript:
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
+  - assets/javascripts/mermaid-init.js
