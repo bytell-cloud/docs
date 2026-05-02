@@ -117,7 +117,7 @@ flowchart LR
 
 | Provider | Role | Status |
 |---|---|---|
-| **AI gateway** (OCI) | Internal Anthropic-API gateway with prompt caching. Service tokens for inter-service auth. | 🔧 Issue 034 — code planned |
+| **AI gateway** (OCI edge-oci) | Internal Claude inference + agentic execution gateway at `ai.bytell.com`. Bearer-secret authenticated. Exposes `/v1/query` (one-shot completion) and `/v1/agent` (full agentic loop with file/bash/search tools). | ✅ Live |
 
 ### Edge / public face
 
@@ -126,7 +126,7 @@ flowchart LR
 | `bytell.com` / `cloud.bytell.com` | GitHub Pages (this site) | Documentation |
 | `www.bytell.com` | Cloudflare Worker (redirect) | Redirects to `cloud.bytell.com` |
 | `status.bytell.com` | Cloudflare Worker (status dashboard) | Live infrastructure health |
-| `ai.bytell.com` | OCI tunnel → AI gateway | Internal AI inference (Access-gated) |
+| `ai.bytell.com` | OCI tunnel → AI gateway | Internal Claude inference + agentic execution (bearer-authenticated) |
 | `edge-oci.bytell.com` / `utility-oci.bytell.com` | OCI tunnels | SSH / admin (Access-gated) |
 
 ### Egress economics

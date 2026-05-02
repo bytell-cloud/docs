@@ -26,7 +26,7 @@ for the full topology, current status per component, and identity model.
 | **Observability backbone** | Cribl Cloud Free |
 | **Alerting** | Resend (email) via Cribl pipeline |
 | **Secrets** | OCI Vault (canonical, single source of truth) |
-| **AI inference (internal)** | OCI-hosted gateway proxying Anthropic API (in flight) |
+| **AI inference (internal)** | OCI-hosted gateway at `ai.bytell.com` (Claude completions + agentic execution) |
 | **Source / CI** | GitHub (`bytell-cloud` org) |
 | **This site** | mkdocs-material on GitHub Pages |
 
@@ -46,7 +46,7 @@ still ahead.
 |---|---|
 | [`cloud.bytell.com`](https://cloud.bytell.com) | This documentation site |
 | `status.bytell.com` | Live infrastructure health dashboard *(launching soon)* |
-| `ai.bytell.com` | Internal AI inference gateway *(launching soon, Access-gated)* |
+| `ai.bytell.com` | Internal Claude inference + agentic execution gateway (bearer-authenticated) |
 | `edge-oci.bytell.com` / `utility-oci.bytell.com` | OCI VM SSH endpoints *(Access-gated)* |
 
 ## Quick links
