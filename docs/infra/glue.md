@@ -1,8 +1,10 @@
 # Glue: cross-cloud patterns
 
-The infrastructure intentionally spans seven providers. Most of the value
-comes from picking each provider's strongest free-tier surface — but the
-cost is **glue**: every service-to-service call across provider boundaries
+The infrastructure intentionally spans multiple providers (OCI + GCP +
+Cloudflare + Supabase + Cribl + Resend, plus Mellon as the local host).
+Most of the value comes from picking each provider's strongest free-tier
+surface — but the cost is **glue**: every service-to-service call across
+provider boundaries
 needs auth, discovery, and observability of its own. This page collects the
 patterns we've adopted (and the ones we haven't built yet but should), so
 each new component slots into a known shape rather than reinventing one.
@@ -96,8 +98,9 @@ a re-deploy on the dependent services.
 
 **Problem.** OCI Vault is the canonical secret store, but most secrets get
 consumed by services in GCP (Cloud Run env), Cloudflare (Worker secrets),
-fly.io (`flyctl secrets`), and elsewhere. Manually copying values across
-five providers is the typical place where production breaks.
+Supabase (project secrets), and Mellon (`.env` files for local services).
+Manually copying values across providers is the typical place where
+production breaks.
 
 **Pattern.** A small Cloud Run cron job, **`vault-sync`**, reads from OCI
 Vault hourly and pushes selected entries to each provider's native secret
@@ -112,9 +115,9 @@ secrets:
       - provider: cloudflare
         worker_secret: AI_GATEWAY_TOKEN
         worker: bytell-status-dashboard
-      - provider: fly
-        app: claude-cloud-hello
-        secret: AI_GATEWAY_TOKEN
+      - provider: mellon
+        env_file: /home/trbynum/cerebro/cerebro_backend/.env
+        var: AI_GATEWAY_TOKEN
 ```
 
 When you rotate a secret in Vault, every provider has it within an hour
@@ -130,8 +133,8 @@ secrets actively used cross-cloud).
 
 ## 4. Generalized event bus via Pub/Sub bridge
 
-**Problem.** Asynchronous communication between providers — service in
-fly.io needs to trigger work in Cloud Run, with retries and dead-letter
+**Problem.** Asynchronous communication between providers — service on
+Mellon needs to trigger work in Cloud Run, with retries and dead-letter
 support. Per-pair custom wiring is hard to maintain.
 
 **Pattern.** Reuse the **`cribl-ingest`** Cloud Run service we built for
@@ -175,8 +178,7 @@ site):
 | **CF Workers** | `console.log` is captured by the runtime; ship via Cloudflare Logpush → Worker that POSTs to Cribl HTTP source. (Not yet wired.) |
 | **GCP Cloud Run** | Cloud Logging sink → Pub/Sub topic → Cribl Pub/Sub source. (Future.) |
 | **OCI VMs** | rsyslog → Cribl Edge agent on the Ampere host (post-landing) → Cribl Cloud. (Future.) |
-| **fly.io** | `flyctl logs` is human-only; for ingest, app code POSTs to Cribl HTTP source directly. |
-| **Render** | Render Log Streams → endpoint we operate → Cribl HTTP source. |
+| **Mellon** | journald → vector or fluent-bit on host → Cribl HTTP source. (Future.) |
 | **Anywhere else** | App calls `cribl-ingest` directly; same pattern as the event bus above. |
 
 The point of the table is **don't invent a sixth recipe**. Pick the row
@@ -196,16 +198,13 @@ with a probe that reports usage versus its key free-tier limit:
 
 | Provider | Limit to track |
 |---|---|
-| OCI | NoSQL read/write/storage; egress (10 TB/mo) |
-| GCP | BigQuery storage (10 GiB), query (1 TiB/mo); Pub/Sub (10 GiB/mo) |
-| Cloudflare | Worker requests (100K/day); R2 storage (10 GB) |
+| OCI | NoSQL read/write/storage; egress (10 TB/mo); MySQL HeatWave reserved-not-provisioned |
+| GCP | BigQuery storage (10 GiB), query (1 TiB/mo); Pub/Sub (10 GiB/mo); Cloud Run requests |
+| Cloudflare | Worker requests (100K/day); R2 storage (10 GB); KV reads + writes |
+| Supabase | DB size (500 MB); MAU (50K); egress (5 GB/mo) |
 | Cribl | 1 TB/day ingest |
-| Supabase | DB size (500 MB); MAU (50K) |
-| Neon | compute-hours (191.9/mo); storage (0.5 GB) |
-| Upstash | commands (500K/mo); DB size (256 MB) |
-| Turso | row reads (1B/mo); writes (25M/mo); storage (9 GB) |
-| fly.io | trial credit ($5/mo) |
-| Render | instance-hours (~750/mo) |
+| Resend | 3000 emails/mo, 100/day |
+| Mellon | disk free (98 GB total, 50+ used); WiFi reliability (no automated metric) |
 
 The dashboard at status.bytell.com surfaces these as capacity bars — a bar
 above 80% gets visible, above 95% gets an alert email via Resend.

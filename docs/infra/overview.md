@@ -1,9 +1,9 @@
 # Infrastructure overview
 
 A deliberately wide multi-cloud footprint, each provider used only for its
-strongest free-tier surface. The picture below is the **eventual** state
-once the in-flight provisioning issues land; the **status** column flags
-what's already up vs. what's coming.
+strongest free-tier surface — plus **Mellon**, the local "Heroku-tier" host
+for app-shaped workloads. The committed footprint is **OCI + GCP +
+Cloudflare + Supabase + Cribl + Resend + Mellon**.
 
 ## Topology
 
@@ -23,16 +23,12 @@ flowchart LR
         OCI_AMD[OCI E2.1.Micro × 2<br/>edge-oci, utility-oci]
         OCI_ARM[OCI Ampere A1.Flex<br/>retry-loop in flight]
         GCR[GCP Cloud Run<br/>cribl-ingest, future workers]
-        FLY[fly.io Mach VMs<br/>global-edge HTTP]
-        REN[Render<br/>git-deploy services]
+        MEL[Mellon<br/>local host, Cerebro + filebrowser]
     end
 
     subgraph DATA[State]
         SUPA[Supabase<br/>Postgres + Auth + Realtime]
-        NEON[Neon<br/>edge-Postgres, branching]
-        TURSO[Turso<br/>libSQL at the edge]
         OCI_NS[OCI NoSQL<br/>bulk durable KV]
-        UPSTASH[Upstash<br/>serverless Redis]
         CFKV[Cloudflare KV<br/>config, status doc]
         FIRE[GCP Firestore<br/>realtime sync]
         BQ[GCP BigQuery<br/>analytics + warm logs]
@@ -49,7 +45,7 @@ flowchart LR
     DNS --> WW & DOC & STAT & AIGW
     DNS --> CDN
     DNS --> TUN
-    TUN --> OCI_AMD & OCI_ARM
+    TUN --> OCI_AMD & OCI_ARM & MEL
 
     OCI_AMD --> AIGW
     OCI_AMD -.uses.-> VAULT
@@ -82,16 +78,14 @@ flowchart LR
 | **GCP Cloud Run** | Stateless HTTP workloads. Currently the **`cribl-ingest`** bridge (Cribl webhook → Pub/Sub → BigQuery). Workload identity, no JSON keys. | 🔧 Cribl-ingest service authored; awaiting deploy |
 | **Cloudflare Workers** | Edge logic — redirects, dashboard SSR, status page. 100K req/day free. | ✅ Live (redirect Worker, status dashboard staged) |
 | **Cloudflare Pages** | Frontends — when needed, currently no app hosted | 🟡 Available, unused |
-| **fly.io** | Globally-distributed Mach VMs for latency-sensitive HTTP and persistent connections. ~$5/mo trial credit ≈ 3 micro Machines pinned. | 🔧 Issue 036 — provisioning pending |
-| **Render** | Fargate-like git-deploy. Used for cold-start-tolerant workloads + Static Sites; sleeping web services not used in latency-sensitive paths. | 🔧 Issue 038 |
+| **Mellon** (local) | Apple MBP 11,4 on Ubuntu 22.04. Hosts app-shaped workloads (Cerebro), filebrowser, SSH-over-tunnel. WiFi-only. See [`mellon.md`](mellon.md). | ✅ Live — Issue 045 (formalization in flight) |
 
 ### State (relational)
 
 | Provider | Role | Status |
 |---|---|---|
-| **Supabase** | Postgres + Auth + Realtime + Storage. Default home for app data needing RLS-driven row security or realtime UI. | 🔧 Issue 037 |
-| **Neon** | Postgres with **branching** + edge driver (works from CF Workers via HTTPS). For migration previews and Workers-side queries. | 🔧 Issue 039 |
-| **Turso** | libSQL (SQLite) replicated to multiple regions. For per-tenant DBs and read-heavy edge endpoints. | 🔧 Issue 041 |
+| **Supabase** | Postgres + Auth + Realtime + Storage. Default home for app data needing RLS-driven row security or realtime UI. | ✅ Live (Issue 037) |
+| **Local Postgres on Mellon** | Cerebro's primary store (Postgres 15 in Docker). Dev-shaped, exposed only to Cerebro on Mellon. | ✅ Live |
 
 ### State (KV / NoSQL)
 
@@ -99,7 +93,7 @@ flowchart LR
 |---|---|---|
 | **OCI NoSQL** | Bulk durable KV (75 GB / 133M ops/mo, Phoenix-only). | ⏸️ Quota = 0; Issue 021 awaiting Oracle |
 | **Cloudflare KV** | Globally-replicated, eventually-consistent config; the **status aggregator** writes its rolled-up doc here. Edge-cached. | ✅ Status namespace staged (apply pending) |
-| **Upstash Redis** | Serverless Redis, REST API for CF Workers. Rate limits, idempotency keys, ephemeral caches. | 🔧 Issue 040 |
+| **Local Redis on Mellon** | Cerebro's queue / cache. `127.0.0.1:6379` only. | ✅ Live |
 | **GCP Firestore** | Realtime document sync. | ✅ Available, unused |
 
 ### Observability, eventing, secrets
@@ -128,6 +122,9 @@ flowchart LR
 | `status.bytell.com` | Cloudflare Worker (status dashboard) | Live infrastructure health |
 | `ai.bytell.com` | OCI tunnel → AI gateway | Internal Claude inference + agentic execution (bearer-authenticated) |
 | `edge-oci.bytell.com` / `utility-oci.bytell.com` | OCI tunnels | SSH / admin (Access-gated) |
+| `cerebro.bytell.com` / `cerebro-api.bytell.com` | Mellon tunnels | Cerebro frontend + backend |
+| `files.bytell.com` | Mellon tunnel → filebrowser | File browser UI |
+| `ssh.bytell.com` | Mellon tunnel → sshd | SSH access to Mellon (Access-gated) |
 
 ### Egress economics
 
